@@ -1,25 +1,14 @@
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const habits = ['DoorDash', 'Impulse Amazon', 'Uber', 'Thrift fits', 'Crypto coins'];
 
-export type RootStackParamList = {
-  SelectHabit: undefined;
-  NextScreen: undefined;
-};
-
-type Props = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'SelectHabit'>;
-};
-
-export default function SelectHabitScreen({ navigation }: Props) {
+export default function SelectHabitScreen() {
   const [selectedHabit, setSelectedHabit] = useState('');
-  const [showButton, setShowButton] = useState(false);
 
   const handleSelect = (habit: string) => {
     setSelectedHabit(habit);
-    setShowButton(true);
   };
 
   const getRoast = (habit: string) => {
@@ -64,14 +53,19 @@ export default function SelectHabitScreen({ navigation }: Props) {
         })}
       </View>
 
-      {selectedHabit && (
+      {selectedHabit !== '' && (
         <>
           <Text style={styles.roast}>{getRoast(selectedHabit)}</Text>
           <TouchableOpacity
             style={styles.continueButton}
-            onPress={() => navigation.navigate('NextScreen')}
+            onPress={() =>
+              router.push({
+                pathname: '/monthlyspend',
+                params: { habit: selectedHabit },
+              })
+            }
           >
-            <Text style={styles.continueText}>Continue</Text>
+            <Text style={styles.continueText}>Next Question</Text>
           </TouchableOpacity>
         </>
       )}
@@ -80,83 +74,80 @@ export default function SelectHabitScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: '#d6f5f0',
-      paddingHorizontal: 24,
-      paddingTop: 60,
-    },
-    header: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: '#004d4d',
-      marginBottom: 16,
-    },
-    title: {
-      fontSize: 28,
-      fontWeight: '900',
-      color: '#004d4d',
-      marginBottom: 8,
-    },
-    question: {
-      fontSize: 20,
-      fontWeight: '700',
-      color: '#102020',
-      marginBottom: 32,
-    },
-    optionsContainer: {
-      width: '100%',
-      alignItems: 'flex-start',
-    },
-    optionButton: {
-      backgroundColor: '#ffffff',
-      borderRadius: 16,
-      paddingVertical: 14,
-      paddingHorizontal: 20,
-      marginBottom: 16,
-      width: '85%',
-      borderWidth: 2,
-      borderColor: '#ffffff',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.08,
-      shadowRadius: 4,
-      elevation: 3,
-      transform: [{ translateX: 8 }],
-    },
-    selectedOptionButton: {
-      backgroundColor: '#e0f7f5',
-      borderColor: '#007f7f',
-    },
-    optionText: {
-      fontSize: 16,
-      color: '#111111',
-      fontWeight: '700',
-    },
-    selectedOptionText: {
-      color: '#007f7f',
-    },
-    roast: {
-      fontSize: 15,
-      color: '#333333',
-      marginTop: 32,
-      marginBottom: 24,
-      paddingHorizontal: 4,
-      fontStyle: 'italic',
-      alignSelf: 'flex-start',
-    },
-    continueButton: {
-      backgroundColor: '#025E5E',
-      paddingVertical: 14,
-      paddingHorizontal: 36,
-      borderRadius: 12,
-      alignSelf: 'flex-start',
-      marginTop: 10,
-    },
-    continueText: {
-      color: '#ffffff',
-      fontSize: 16,
-      fontWeight: '700',
-    },
-  })
-  
+  container: {
+    flex: 1,
+    backgroundColor: '#e9fcf9',  // Unified mint background
+    paddingHorizontal: 24,
+    paddingTop: 60,
+  },
+  header: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#004040',  // Dark teal
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#004040',
+    marginBottom: 8,
+  },
+  question: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#004040',
+    marginBottom: 32,
+  },
+  optionsContainer: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  optionButton: {
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    width: '100%',
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  selectedOptionButton: {
+    backgroundColor: '#e0f7f5',
+    borderColor: '#007070',
+  },
+  optionText: {
+    fontSize: 16,
+    color: '#111111',
+    fontWeight: '700',
+  },
+  selectedOptionText: {
+    color: '#007070',
+  },
+  roast: {
+    fontSize: 15,
+    color: '#004040',
+    marginTop: 32,
+    marginBottom: 24,
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  continueButton: {
+    backgroundColor: '#007070',
+    paddingVertical: 14,
+    paddingHorizontal: 48,
+    borderRadius: 14,
+    alignSelf: 'center',
+    marginTop: 10,
+  },
+  continueText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+});
