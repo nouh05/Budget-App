@@ -1,12 +1,53 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-const habits = ['DoorDash', 'Impulse Amazon', 'Uber', 'Thrift fits', 'Crypto coins'];
+const HABITS = ['DoorDash', 'Impulse Amazon', 'Uber', 'Thrift fits', 'Crypto coins'];
+const STORAGE_KEY = '@user_data';
+
+type HabitData = {
+  monthlySpend: number;
+  streak: number;
+  totalSaved: number;
+  lastLoggedDate: string | null;
+};
+
+type UserData = {
+  selectedHabit?: string;
+  habits?: { [habitName: string]: HabitData };
+  age?: number;
+};
 
 export default function AddHabitsScreen() {
   const [selectedHabits, setSelectedHabits] = useState<string[]>([]);
   const [spendValues, setSpendValues] = useState<{ [key: string]: string }>({});
+  const [userData, setUserData] = useState<UserData | null>(null);
+
+  // Load previously saved habits
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const storedData = await AsyncStorage.getItem(STORAGE_KEY);
+        if (storedData) {
+          const parsed: UserData = JSON.parse(storedData);
+          setUserData(parsed);
+          if (parsed.habits) {
+            const habitNames = Object.keys(parsed.habits).filter(h => h !== parsed.selectedHabit);
+            setSelectedHabits(habitNames);
+            const spends: { [key: string]: string } = {};
+            habitNames.forEach(h => {
+              spends[h] = parsed.habits![h].monthlySpend.toString();
+            });
+            setSpendValues(spends);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load user data', e);
+      }
+    };
+    loadData();
+  }, []);
 
   const handleSelectHabit = (habit: string) => {
     if (selectedHabits.includes(habit)) {
@@ -38,14 +79,33 @@ export default function AddHabitsScreen() {
     }
   };
 
-  const handleContinue = () => {
-    router.push({
-      pathname: '/dashboard',
-      params: {
-        selectedHabits: JSON.stringify(selectedHabits),
-        monthlySpends: JSON.stringify(spendValues),
-      },
-    });
+  const handleContinue = async () => {
+    if (selectedHabits.some(h => !spendValues[h])) {
+      alert('Please enter a monthly spend for each selected habit');
+      return;
+    }
+
+    try {
+      const updatedHabits: { [key: string]: HabitData } = { ...(userData?.habits || {}) };
+      selectedHabits.forEach(h => {
+        updatedHabits[h] = {
+          monthlySpend: Number(spendValues[h]),
+          streak: 0,
+          totalSaved: 0,
+          lastLoggedDate: null,
+        };
+      });
+
+      const updatedData: UserData = {
+        ...userData,
+        habits: updatedHabits,
+      };
+
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedData));
+      router.push('/dashboard');
+    } catch (e) {
+      console.error('Failed to save habits', e);
+    }
   };
 
   return (
@@ -55,7 +115,7 @@ export default function AddHabitsScreen() {
       <Text style={styles.question}>Pick up to 2 more guilty habits and their monthly cost:</Text>
 
       <View style={styles.optionsContainer}>
-        {habits.map(habit => {
+        {HABITS.map(habit => {
           const isSelected = selectedHabits.includes(habit);
           return (
             <View key={habit} style={styles.habitContainer}>

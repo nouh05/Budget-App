@@ -1,14 +1,55 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-const habits = ['DoorDash', 'Impulse Amazon', 'Uber', 'Thrift fits', 'Crypto coins'];
+const HABITS = ['DoorDash', 'Impulse Amazon', 'Uber', 'Thrift fits', 'Crypto coins'];
+const STORAGE_KEY = '@user_data';
+
+type HabitData = {
+  monthlySpend: number;
+  streak: number;
+  totalSaved: number;
+  lastLoggedDate: string | null;
+};
+
+type UserData = {
+  selectedHabit?: string;
+  habits?: { [habitName: string]: HabitData };
+};
 
 export default function SelectHabitScreen() {
-  const [selectedHabit, setSelectedHabit] = useState('');
+  const [selectedHabit, setSelectedHabit] = useState<string>('');
 
-  const handleSelect = (habit: string) => {
+  // Load selected habit from unified storage
+  useEffect(() => {
+    const loadHabit = async () => {
+      try {
+        const json = await AsyncStorage.getItem(STORAGE_KEY);
+        if (json) {
+          const data: UserData = JSON.parse(json);
+          if (data.selectedHabit) setSelectedHabit(data.selectedHabit);
+        }
+      } catch (e) {
+        console.error('Failed to load habit from storage', e);
+      }
+    };
+    loadHabit();
+  }, []);
+
+  const handleSelect = async (habit: string) => {
     setSelectedHabit(habit);
+
+    try {
+      const json = await AsyncStorage.getItem(STORAGE_KEY);
+      const data: UserData = json ? JSON.parse(json) : {};
+
+      // Update selectedHabit while keeping existing habits
+      const updatedData: UserData = { ...data, selectedHabit: habit };
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedData));
+    } catch (e) {
+      console.error('Failed to save habit to storage', e);
+    }
   };
 
   const getRoast = (habit: string) => {
@@ -22,6 +63,7 @@ export default function SelectHabitScreen() {
     }
   };
 
+
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Step 1 of 3</Text>
@@ -29,7 +71,7 @@ export default function SelectHabitScreen() {
       <Text style={styles.question}>What’s your guilty spending habit?</Text>
 
       <View style={styles.optionsContainer}>
-        {habits.map((habit) => {
+        {HABITS.map((habit) => {
           const isSelected = selectedHabit === habit;
           return (
             <TouchableOpacity

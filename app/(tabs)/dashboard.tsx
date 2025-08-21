@@ -1,45 +1,67 @@
-import { getUserData, saveUserData } from '@/utils/userDataStorage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-export default function Dashboard() {
-  const [streak, setStreak] = useState(0);
-  const [totalSaved, setTotalSaved] = useState(0);
-  const [monthlySpend, setMonthlySpend] = useState(0);
-  const [lastLoggedDate, setLastLoggedDate] = useState<string | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [saveAmount, setSaveAmount] = useState('');
+const STORAGE_KEY = '@user_data';
 
+type HabitData = {
+  monthlySpend: number;
+  streak: number;
+  totalSaved: number;
+  lastLoggedDate: string | null;
+};
+
+type UserData = {
+  selectedHabit?: string;
+  habits?: { [habitName: string]: HabitData };
+  age?: number;
+};
+
+export default function Dashboard() {
+  const [habits, setHabits] = useState<{ [key: string]: HabitData }>({});
+  const [modalVisible, setModalVisible] = useState(false);
+  const [currentHabit, setCurrentHabit] = useState<string | null>(null);
+  const [saveAmount, setSaveAmount] = useState('');
+  const [userData, setUserData] = useState<UserData | null>(null);
+
+  // Load habits from storage
   useEffect(() => {
-    const loadUserData = async () => {
-      const data = await getUserData();
-      if (data) {
-        setStreak(data.streak);
-        setTotalSaved(data.totalSaved);
-        setMonthlySpend(data.monthlySpend);
-        setLastLoggedDate(data.lastLoggedDate || null);
+    const loadData = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const parsed: UserData = JSON.parse(stored);
+          setUserData(parsed);
+          setHabits(parsed.habits || {});
+        }
+      } catch (e) {
+        console.error('Failed to load user data', e);
       }
     };
-    loadUserData();
+    loadData();
   }, []);
 
-  const handleLogPress = () => {
+  const handleLogPress = (habit: string) => {
+    setCurrentHabit(habit);
+    setSaveAmount((habits[habit]?.monthlySpend / 30).toFixed(2)); // default daily save
     setModalVisible(true);
   };
 
   const handleSubmitSave = async () => {
+    if (!currentHabit) return;
+
     const amount = parseFloat(saveAmount);
     if (isNaN(amount) || amount <= 0) {
       Alert.alert('Invalid amount', 'Please enter a valid number');
@@ -47,101 +69,81 @@ export default function Dashboard() {
     }
 
     const today = new Date().toDateString();
-    let newStreak = streak;
+    const habitData = habits[currentHabit] || {
+      monthlySpend: 0,
+      streak: 0,
+      totalSaved: 0,
+      lastLoggedDate: null,
+    };
 
-    if (lastLoggedDate !== today) {
-      newStreak = streak + 1;
-      setStreak(newStreak);
-      setLastLoggedDate(today);
+    let newStreak = habitData.streak;
+    if (habitData.lastLoggedDate !== today) {
+      newStreak = habitData.streak + 1;
     }
 
-    const newTotalSaved = totalSaved + amount;
-    setTotalSaved(newTotalSaved);
-
-    await saveUserData({
+    const updatedHabit = {
+      ...habitData,
       streak: newStreak,
-      totalSaved: newTotalSaved,
-      monthlySpend: monthlySpend,
-      age: 0,
+      totalSaved: habitData.totalSaved + amount,
       lastLoggedDate: today,
-    });
+    };
+
+    const updatedHabits = { ...habits, [currentHabit]: updatedHabit };
+    setHabits(updatedHabits);
+
+    // Update storage
+    try {
+      const updatedData: UserData = { ...userData, habits: updatedHabits };
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedData));
+      setUserData(updatedData);
+    } catch (e) {
+      console.error('Failed to save user data', e);
+    }
 
     setModalVisible(false);
+    setCurrentHabit(null);
     setSaveAmount('');
   };
 
   return (
     <SafeAreaView style={styles.safeContainer}>
       <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-        <View style={styles.contentContainer}>
-          {/* Progress Cards */}
-          <View style={styles.cardsContainer}>
-            <View style={styles.card}>
-              <Text style={styles.cardLabel}>Current Streak</Text>
-              <View style={styles.streakContainer}>
-                <Text style={styles.streakText}>{streak}</Text>
-                <Text style={styles.streakUnit}>days</Text>
-              </View>
+        {Object.keys(habits).map(habit => {
+          const data = habits[habit];
+          const dailyGoal = (data.monthlySpend / 30).toFixed(2);
+          return (
+            <View key={habit} style={styles.card}>
+              <Text style={styles.habitName}>{habit}</Text>
+              <Text style={styles.dailyGoal}>Daily Goal: ${dailyGoal}</Text>
+              <Text style={styles.streakText}>Streak: {data.streak} days</Text>
+              <Text style={styles.totalSaved}>Saved: ${data.totalSaved.toFixed(2)}</Text>
+              <TouchableOpacity style={styles.logButton} onPress={() => handleLogPress(habit)}>
+                <Text style={styles.logButtonText}>Log Today's Save</Text>
+              </TouchableOpacity>
             </View>
-
-            <View style={styles.card}>
-              <Text style={styles.cardLabel}>Total Saved</Text>
-              <Text style={styles.savedText}>${totalSaved.toFixed(2)}</Text>
-            </View>
-          </View>
-
-          {/* Progress Bar */}
-          <View style={styles.progressBarContainer}>
-            <View
-              style={[
-                styles.progressBar,
-                { width: `${Math.min(100, (streak / 7) * 100)}%` },
-              ]}
-            />
-          </View>
-          <Text style={styles.progressText}>
-            {streak >= 7 ? '🔥 Perfect Week!' : `${7 - streak} days to weekly goal`}
-          </Text>
-
-          {/* Log Button */}
-          <TouchableOpacity style={styles.logButton} onPress={handleLogPress}>
-            <Text style={styles.logButtonText}>➕ Log Today's Savings</Text>
-          </TouchableOpacity>
-        </View>
+          );
+        })}
       </ScrollView>
 
-      {/* Save Amount Modal */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
+      {/* Modal */}
+      <Modal visible={modalVisible} transparent animationType="fade">
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
         >
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>How Much Did You Save Today?</Text>
+            <Text style={styles.modalTitle}>Log Savings for {currentHabit}</Text>
             <TextInput
               style={styles.input}
               keyboardType="numeric"
-              placeholder="$0.00"
-              placeholderTextColor="#9ab5b0"
               value={saveAmount}
               onChangeText={setSaveAmount}
             />
             <View style={styles.modalButtonContainer}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setModalVisible(false)}
-              >
+              <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)}>
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.submitButton]}
-                onPress={handleSubmitSave}
-              >
+              <TouchableOpacity style={styles.submitButton} onPress={handleSubmitSave}>
                 <Text style={styles.submitButtonText}>Save</Text>
               </TouchableOpacity>
             </View>
@@ -153,154 +155,32 @@ export default function Dashboard() {
 }
 
 const styles = StyleSheet.create({
-  safeContainer: {
-    flex: 1,
-    backgroundColor: '#e9fcf9',
-  },
-  scrollContainer: {
-    flexGrow: 1,
-  },
-  contentContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 32,
-  },
-  cardsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 32,
-  },
+  safeContainer: { flex: 1, backgroundColor: '#e9fcf9' },
+  scrollContainer: { paddingHorizontal: 24, paddingVertical: 32 },
   card: {
     backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 20,
-    width: '48%',
-    alignItems: 'center',
+    marginBottom: 20,
     shadowColor: '#004040',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
   },
-  cardLabel: {
-    fontSize: 16,
-    color: '#6e928c',
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  streakContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  streakText: {
-    fontSize: 32,
-    color: '#007070',
-    fontWeight: '800',
-    marginRight: 4,
-  },
-  streakUnit: {
-    fontSize: 16,
-    color: '#007070',
-    fontWeight: '600',
-  },
-  savedText: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#007070',
-  },
-  progressBarContainer: {
-    backgroundColor: '#d0f0ea',
-    height: 12,
-    borderRadius: 6,
-    marginBottom: 16,
-    overflow: 'hidden',
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: '#007070',
-    borderRadius: 6,
-  },
-  progressText: {
-    fontSize: 14,
-    color: '#004040',
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 32,
-  },
-  logButton: {
-    backgroundColor: '#007070',
-    paddingVertical: 16,
-    borderRadius: 14,
-    alignItems: 'center',
-    shadowColor: '#004040',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  logButtonText: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,64,64,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#ffffff',
-    padding: 24,
-    borderRadius: 16,
-    width: '90%',
-    maxWidth: 400,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#004040',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  input: {
-    borderWidth: 2,
-    borderColor: '#bcebe3',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#007070',
-    width: '100%',
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  modalButtonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginHorizontal: 8,
-  },
-  cancelButton: {
-    backgroundColor: '#f0f9f7',
-    borderWidth: 1,
-    borderColor: '#bcebe3',
-  },
-  cancelButtonText: {
-    color: '#007070',
-    fontWeight: '600',
-  },
-  submitButton: {
-    backgroundColor: '#007070',
-  },
-  submitButtonText: {
-    color: '#ffffff',
-    fontWeight: '700',
-  },
+  habitName: { fontSize: 20, fontWeight: '700', color: '#004040', marginBottom: 8 },
+  dailyGoal: { fontSize: 16, color: '#007070', marginBottom: 4 },
+  streakText: { fontSize: 16, color: '#007070', marginBottom: 4 },
+  totalSaved: { fontSize: 16, color: '#007070', marginBottom: 12 },
+  logButton: { backgroundColor: '#007070', padding: 12, borderRadius: 12, alignItems: 'center' },
+  logButtonText: { color: '#fff', fontWeight: '700' },
+  modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,64,64,0.4)' },
+  modalContent: { backgroundColor: '#fff', padding: 24, borderRadius: 16, width: '90%' },
+  modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 16, textAlign: 'center' },
+  input: { borderWidth: 2, borderColor: '#bcebe3', borderRadius: 12, padding: 12, fontSize: 16, marginBottom: 16, textAlign: 'center' },
+  modalButtonContainer: { flexDirection: 'row', justifyContent: 'space-between' },
+  cancelButton: { flex: 1, padding: 12, borderRadius: 12, backgroundColor: '#f0f9f7', marginRight: 8, alignItems: 'center' },
+  cancelButtonText: { color: '#007070', fontWeight: '600' },
+  submitButton: { flex: 1, padding: 12, borderRadius: 12, backgroundColor: '#007070', marginLeft: 8, alignItems: 'center' },
+  submitButtonText: { color: '#fff', fontWeight: '700' },
 });

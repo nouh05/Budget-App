@@ -1,5 +1,6 @@
 // firebase/config.js
 import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
 // DO NOT import getAnalytics for React Native
 
 export const firebaseConfig = {
@@ -14,6 +15,6 @@ export const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-
+export const auth = getAuth(app);
 export default app;
 

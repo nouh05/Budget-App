@@ -1,19 +1,60 @@
 import { calculateInvestmentReturn } from '@/utils/calculateReturn';
-import { router, useLocalSearchParams } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-export default function calcResult() {
-  const { age, monthlySpend, habit } = useLocalSearchParams();
-  const numericAge = Number(age);
-  const spend = Number(monthlySpend);
+const STORAGE_KEY = '@user_data';
 
-  const oneYearReturn = calculateInvestmentReturn(spend, numericAge, numericAge + 1, 0.08);
-  const fiveYearReturn = calculateInvestmentReturn(spend, numericAge, numericAge + 5, 0.08);
-  const tenYearReturn = calculateInvestmentReturn(spend, numericAge, numericAge + 10, 0.08);
-  const sixtyFiveReturn = calculateInvestmentReturn(spend, numericAge, 65, 0.08);
+type HabitData = {
+  monthlySpend: number;
+  streak: number;
+  totalSaved: number;
+  lastLoggedDate: string | null;
+};
+
+type UserData = {
+  selectedHabit?: string;
+  habits?: { [habitName: string]: HabitData };
+  age?: number;
+};
+
+export default function CalcResult() {
+  const [userData, setUserData] = useState<UserData | null>(null);
+
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const storedData = await AsyncStorage.getItem(STORAGE_KEY);
+        if (storedData) {
+          setUserData(JSON.parse(storedData));
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+      }
+    };
+    loadUserData();
+  }, []);
+
+  if (!userData || !userData.selectedHabit || !userData.age || !userData.habits) {
+    return (
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.header}>Loading...</Text>
+      </ScrollView>
+    );
+  }
+
+  const habit = userData.selectedHabit;
+  const monthlySpend = userData.habits[habit]?.monthlySpend || 0;
+  const age = userData.age;
+
+  const oneYearReturn = calculateInvestmentReturn(monthlySpend, age, age + 1, 0.08);
+  const fiveYearReturn = calculateInvestmentReturn(monthlySpend, age, age + 5, 0.08);
+  const tenYearReturn = calculateInvestmentReturn(monthlySpend, age, age + 10, 0.08);
+  const sixtyFiveReturn = calculateInvestmentReturn(monthlySpend, age, 65, 0.08);
 
   const handleStartTracking = () => {
-    router.push('/dashboard');
+    router.push('/addHabits');
   };
 
   return (
@@ -23,7 +64,6 @@ export default function calcResult() {
       </Text>
       <Text style={styles.header}>Here’s what you’re missing out on</Text>
 
-      {/* Cards Grid */}
       <View style={styles.gridContainer}>
         <View style={styles.card}>
           <Text style={styles.cardAmount}>${oneYearReturn.toLocaleString()}</Text>
@@ -43,10 +83,8 @@ export default function calcResult() {
         </View>
       </View>
 
-      {/* Motivational Nudge */}
       <Text style={styles.nudge}>You don’t need to quit, just save 1% to start.</Text>
 
-      {/* CTA Button */}
       <TouchableOpacity style={styles.trackButton} onPress={handleStartTracking}>
         <Text style={styles.trackButtonText}>Start Tracking Now</Text>
       </TouchableOpacity>
