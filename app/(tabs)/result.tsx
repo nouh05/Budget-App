@@ -11,17 +11,21 @@ type HabitData = {
   streak: number;
   totalSaved: number;
   lastLoggedDate: string | null;
+  perUseSpend: number;
 };
 
 type UserData = {
-  selectedHabit?: string;
   habits?: { [habitName: string]: HabitData };
   age?: number;
+  totalSaved?: number;
+  streak?: number;
+  lastLoggedDate?: string | null;
 };
 
 export default function CalcResult() {
   const [userData, setUserData] = useState<UserData | null>(null);
-
+  const [loadError, setLoadError] = useState('');
+  
   useEffect(() => {
     const loadUserData = async () => {
       try {
@@ -31,21 +35,40 @@ export default function CalcResult() {
         }
       } catch (error) {
         console.error('Error loading user data:', error);
+        setLoadError('Something went wrong loading your data.');
       }
     };
     loadUserData();
   }, []);
 
-  if (!userData || !userData.selectedHabit || !userData.age || !userData.habits) {
+  if (!userData || !userData.habits || Object.keys(userData.habits).length === 0 || !userData.age) {
     return (
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.header}>Loading...</Text>
+        {loadError ? <Text style={styles.errorText}>{loadError}</Text> : null}
       </ScrollView>
     );
   }
 
-  const habit = userData.selectedHabit;
-  const monthlySpend = userData.habits[habit]?.monthlySpend || 0;
+  // Get the first habit instead of looking for selectedHabit
+  const habitNames = Object.keys(userData.habits);
+  const habit = habitNames[0];
+  const habitData = userData.habits[habit];
+  
+  if (!habitData) {
+    return (
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.header}>
+          We couldn't find your habit data. Please go back and try again.
+        </Text>
+        <TouchableOpacity style={styles.trackButton} onPress={() => router.push('/addHabits')}>
+          <Text style={styles.trackButtonText}>Go Back</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    );
+  }
+
+  const monthlySpend = habitData.monthlySpend || 0;
   const age = userData.age;
 
   const oneYearReturn = calculateInvestmentReturn(monthlySpend, age, age + 1, 0.08);
@@ -62,7 +85,7 @@ export default function CalcResult() {
       <Text style={styles.habitText}>
         If you quit <Text style={styles.highlight}>{habit}</Text> today...
       </Text>
-      <Text style={styles.header}>Here’s what you’re missing out on</Text>
+      <Text style={styles.header}>Here's what you're missing out on</Text>
 
       <View style={styles.gridContainer}>
         <View style={styles.card}>
@@ -83,7 +106,7 @@ export default function CalcResult() {
         </View>
       </View>
 
-      <Text style={styles.nudge}>You don’t need to quit, just save 1% to start.</Text>
+      <Text style={styles.nudge}>You don't need to quit, just save 1% to start.</Text>
 
       <TouchableOpacity style={styles.trackButton} onPress={handleStartTracking}>
         <Text style={styles.trackButtonText}>Start Tracking Now</Text>
@@ -92,82 +115,86 @@ export default function CalcResult() {
   );
 }
 
+// KEEP ALL YOUR ORIGINAL STYLES EXACTLY AS THEY WERE
 const styles = StyleSheet.create({
   container: {
-    flexGrow: 1,
+    flex: 1,
     backgroundColor: '#e9fcf9',
     paddingHorizontal: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 32,
+    paddingTop: 60,
+    paddingBottom: 40,
+  },
+  header: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#003333',
+    marginBottom: 12,
+    textAlign: 'center',
   },
   habitText: {
-    fontSize: 20,
-    color: '#004040',
-    marginBottom: 20,
+    fontSize: 18,
     fontWeight: '600',
+    color: '#005555',
+    marginBottom: 24,
     textAlign: 'center',
   },
   highlight: {
-    color: '#004040',
-    fontWeight: '900',
-  },
-  header: {
-    fontSize: 18,
-    color: '#004040',
-    marginBottom: 20,
-    fontWeight: '600',
-    textAlign: 'center',
+    color: '#007070',
+    fontWeight: '700',
   },
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     marginBottom: 32,
-    width: '100%',
   },
   card: {
     backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
     width: '48%',
-    paddingVertical: 20,
     marginBottom: 16,
-    borderRadius: 12,
     alignItems: 'center',
-    justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
     elevation: 3,
   },
   cardAmount: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#004040',
-    marginBottom: 4,
+    fontWeight: 'bold',
+    color: '#007070',
+    marginBottom: 8,
   },
   cardLabel: {
     fontSize: 14,
-    color: '#004040',
-    textAlign: 'center',
+    color: '#006666',
   },
   nudge: {
     fontSize: 16,
-    color: '#004040',
-    fontWeight: '600',
-    marginBottom: 24,
+    color: '#005555',
+    marginBottom: 32,
     textAlign: 'center',
+    fontStyle: 'italic',
   },
   trackButton: {
-    backgroundColor: '#004040',
-    paddingVertical: 14,
-    paddingHorizontal: 48,
-    borderRadius: 14,
-    alignItems: 'center',
+    backgroundColor: '#007070',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    alignSelf: 'center',
   },
   trackButtonText: {
     color: '#ffffff',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
   },
-});
+  errorText: {
+    color: '#FF4D4D',
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 16,
+  },
+}); 

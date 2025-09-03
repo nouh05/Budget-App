@@ -1,11 +1,11 @@
+import { getItem } from '@/utils/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { ConfirmationResult, signInWithPhoneNumber } from 'firebase/auth';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { auth } from '../../firebase/config';
-
 // --- Helpers to track OTP requests in AsyncStorage ---
 const MAX_ATTEMPTS = 5;
 const OTP_KEY = "otpAttempts";
@@ -50,17 +50,14 @@ export default function PhoneSignIn() {
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const [isOtpSent, setIsOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  // Resend cooldown
+  const [errorMessage, setErrorMessage] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendLoading, setResendLoading] = useState(false);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // OTP inputs
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
   const otpRefs = useRef<Array<TextInput | null>>([]);
 
-  // Handle OTP digit changes
   const handleOtpChange = (index: number, value: string) => {
     if (!/^\d?$/.test(value)) return;
     const newOtp = [...otpDigits];
@@ -71,6 +68,7 @@ export default function PhoneSignIn() {
     if (value && index < otpRefs.current.length - 1) {
       otpRefs.current[index + 1]?.focus();
     }
+    if (errorMessage) setErrorMessage('');
   };
 
   const handleOtpKeyPress = (index: number, key: string) => {
@@ -79,10 +77,9 @@ export default function PhoneSignIn() {
     }
   };
 
-  // Auto-login if phone saved
   useEffect(() => {
     const loadPhoneNumber = async () => {
-      const savedNumber = await SecureStore.getItemAsync('userPhoneNumber');
+      const savedNumber = await getItem("userPhoneNumber");
       if (savedNumber) {
         const hasOnboarded = await AsyncStorage.getItem(`${savedNumber}:hasOnboarded`);
         router.push(hasOnboarded === 'true' ? '/dashboard' : '/selecthabit');
@@ -91,7 +88,6 @@ export default function PhoneSignIn() {
     loadPhoneNumber();
   }, []);
 
-  // Cooldown effect
   useEffect(() => {
     if (resendCooldown > 0 && timer.current === null) {
       timer.current = setInterval(() => {
@@ -115,19 +111,17 @@ export default function PhoneSignIn() {
     };
   }, [resendCooldown]);
 
-  // Handle sending OTP
   const handleContinue = async () => {
     const digitsOnly = phoneNumber.replace(/\D/g, '');
     if (digitsOnly.length < 10) {
-      Alert.alert("Please enter a valid phone number");
+      setErrorMessage("Please enter a valid phone number");
       return;
     }
     const formattedPhone = '+1' + digitsOnly;
 
-    // Check daily OTP limit
     const currentCount = await getOtpCount();
     if (currentCount >= MAX_ATTEMPTS) {
-      Alert.alert("You’ve reached the daily OTP request limit.");
+      setErrorMessage("You've reached the daily OTP request limit");
       return;
     }
 
@@ -138,24 +132,23 @@ export default function PhoneSignIn() {
       setIsOtpSent(true);
       await incrementOtpCount();
     } catch (e) {
-      Alert.alert("Error sending OTP");
+      setErrorMessage("Error sending OTP");
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle verifying OTP
   const handleVerifyOtp = async () => {
     if (!otp) {
-      Alert.alert('Please enter the OTP');
+      setErrorMessage("Please enter the OTP you received");
       return;
     }
     if (otp.length !== 6) {
-      Alert.alert('OTP must be 6 digits');
+      setErrorMessage("OTP must be 6 digits");
       return;
     }
     if (!confirmationResult) {
-      Alert.alert('No OTP session found. Please try again.');
+      setErrorMessage("No OTP session found. Please try again");
       return;
     }
 
@@ -167,20 +160,18 @@ export default function PhoneSignIn() {
       router.push('/dashboard');
     } catch (e) {
       console.error('Error verifying OTP:', e);
-      Alert.alert('Invalid OTP, please try again.');
+      setErrorMessage("Invalid OTP, please try again");
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle resend OTP
   const handleResend = async () => {
     if (resendCooldown > 0) return;
 
-    // Check daily OTP limit
     const currentCount = await getOtpCount();
     if (currentCount >= MAX_ATTEMPTS) {
-      Alert.alert("You’ve reached the daily OTP request limit.");
+      setErrorMessage("You've reached the daily OTP request limit");
       return;
     }
 
@@ -191,13 +182,12 @@ export default function PhoneSignIn() {
       setResendCooldown(30);
       await incrementOtpCount();
     } catch (e) {
-      Alert.alert("Error resending OTP");
+      setErrorMessage("Error resending OTP");
     } finally {
       setResendLoading(false);
     }
   };
 
-  // Loading spinner
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center bg-white">
@@ -220,9 +210,13 @@ export default function PhoneSignIn() {
             placeholder="+1 555 123 4567"
             placeholderTextColor="#a0a0a0"
             value={phoneNumber}
-            onChangeText={setPhoneNumber}
+            onChangeText={text => {
+              setPhoneNumber(text);
+              if (errorMessage) setErrorMessage('');
+            }}
             editable={!loading}
           />
+          {errorMessage !== '' && <Text style={styles.errorText}>{errorMessage}</Text>}
           <TouchableOpacity
             style={[styles.continueButton, loading && { opacity: 0.5 }]}
             onPress={handleContinue}
@@ -249,7 +243,7 @@ export default function PhoneSignIn() {
               />
             ))}
           </View>
-
+          {errorMessage !== '' && <Text style={styles.errorText}>{errorMessage}</Text>}
           <TouchableOpacity
             style={[styles.continueButton, loading && { opacity: 0.5 }]}
             onPress={handleVerifyOtp}
@@ -331,5 +325,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#007070',
     backgroundColor: '#ffffff',
+  },
+  errorText: {
+    color: '#FF4D4D',       
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 16,
   },
 });

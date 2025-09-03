@@ -5,7 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 export default function LoadingScreen() {
     useEffect(() => {
         const timer = setTimeout(() => {
-            router.push("/authChoice");
+            router.push("/selecthabit");
         }, 2500);
 
         return () => clearTimeout(timer);
@@ -22,22 +22,25 @@ export default function LoadingScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#e9fcf9',  // Unified background
+        backgroundColor: '#e9fcf9',
         alignItems: 'center',
         justifyContent: 'center',
         paddingHorizontal: 24,
     },
     appName: {
-        fontSize: 48,  // Slightly smaller to match rest of app
-        fontWeight: '900',
-        color: '#004040',  // Unified text color
+        fontSize: 54,
+        fontWeight: '800',
+        color: '#003333',
         textAlign: 'center',
+        letterSpacing: -2,
+        marginBottom: 8,
     },
     tagline: {
-        fontSize: 20,
-        color: '#007070',  // Subtle highlight color
-        marginTop: 20,
-        fontWeight: '600',
+        fontSize: 18,
+        color: '#006666',
+        fontWeight: '400',
         textAlign: 'center',
+        letterSpacing: 3,
+        textTransform: 'uppercase',
     },
 });

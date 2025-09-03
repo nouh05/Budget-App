@@ -1,30 +1,27 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-
+import {
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { initializeHabitWithDefaults } from '../../utils/habitUtils';
+import { HabitData, UserData } from '../../utils/types';
 const HABITS = ['DoorDash', 'Impulse Amazon', 'Uber', 'Thrift fits', 'Crypto coins'];
 const STORAGE_KEY = '@user_data';
 
-type HabitData = {
-  monthlySpend: number;
-  streak: number;
-  totalSaved: number;
-  lastLoggedDate: string | null;
-};
-
-type UserData = {
-  selectedHabit?: string;
-  habits?: { [habitName: string]: HabitData };
-  age?: number;
-};
-
 export default function AddHabitsScreen() {
   const [selectedHabits, setSelectedHabits] = useState<string[]>([]);
-  const [spendValues, setSpendValues] = useState<{ [key: string]: string }>({});
   const [userData, setUserData] = useState<UserData | null>(null);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  // Load previously saved habits
+  const maxHabitsSelected = selectedHabits.length >= 2;
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -32,40 +29,23 @@ export default function AddHabitsScreen() {
         if (storedData) {
           const parsed: UserData = JSON.parse(storedData);
           setUserData(parsed);
-          if (parsed.habits) {
-            const habitNames = Object.keys(parsed.habits).filter(h => h !== parsed.selectedHabit);
-            setSelectedHabits(habitNames);
-            const spends: { [key: string]: string } = {};
-            habitNames.forEach(h => {
-              spends[h] = parsed.habits![h].monthlySpend.toString();
-            });
-            setSpendValues(spends);
-          }
         }
       } catch (e) {
         console.error('Failed to load user data', e);
+        setErrorMessage('Something went wrong loading your data.');
       }
     };
     loadData();
   }, []);
+  
 
   const handleSelectHabit = (habit: string) => {
+    setErrorMessage('');
     if (selectedHabits.includes(habit)) {
       setSelectedHabits(selectedHabits.filter(h => h !== habit));
-      const newSpends = { ...spendValues };
-      delete newSpends[habit];
-      setSpendValues(newSpends);
-    } else if (selectedHabits.length < 2) {
+    } else if (!maxHabitsSelected) {
       setSelectedHabits([...selectedHabits, habit]);
-      setSpendValues({ ...spendValues, [habit]: '' });
     }
-  };
-
-  const handleSpendChange = (habit: string, value: string) => {
-    setSpendValues({
-      ...spendValues,
-      [habit]: value.replace(/[^0-9]/g, ''),
-    });
   };
 
   const getRoast = (habit: string) => {
@@ -80,129 +60,248 @@ export default function AddHabitsScreen() {
   };
 
   const handleContinue = async () => {
-    if (selectedHabits.some(h => !spendValues[h])) {
-      alert('Please enter a monthly spend for each selected habit');
+    if (selectedHabits.length === 0) {
+      setErrorMessage('Please select at least one habit to continue.');
       return;
     }
-
+  
     try {
-      const updatedHabits: { [key: string]: HabitData } = { ...(userData?.habits || {}) };
+      let updatedHabits: { [key: string]: HabitData } = { ...(userData?.habits || {}) }; // Change to 'let'
+  
       selectedHabits.forEach(h => {
-        updatedHabits[h] = {
-          monthlySpend: Number(spendValues[h]),
-          streak: 0,
-          totalSaved: 0,
-          lastLoggedDate: null,
-        };
+        if (!updatedHabits[h]) {
+          updatedHabits[h] = initializeHabitWithDefaults(h);
+        }
       });
-
+  
+      // ENSURE MAX 3 HABITS TOTAL
+      const allHabitNames = Object.keys(updatedHabits);
+      if (allHabitNames.length > 3) {
+        const habitsToKeep = allHabitNames.slice(-3);
+        const trimmedHabits: { [key: string]: HabitData } = {};
+        habitsToKeep.forEach(habit => {
+          trimmedHabits[habit] = updatedHabits[habit];
+        });
+        updatedHabits = trimmedHabits; // This line was causing the error
+      }
+  
       const updatedData: UserData = {
         ...userData,
         habits: updatedHabits,
+        totalSaved: userData?.totalSaved || 0,
+        streak: userData?.streak || 0,
+        lastLoggedDate: userData?.lastLoggedDate || null,
       };
-
+  
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedData));
       router.push('/dashboard');
     } catch (e) {
       console.error('Failed to save habits', e);
+      setErrorMessage('Failed to save your habits. Please try again.');
     }
   };
 
+  const skipStep = () => {
+    router.push('/dashboard');
+  };
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Step 2 of 3</Text>
-      <Text style={styles.title}>Double down 🌱</Text>
-      <Text style={styles.question}>Pick up to 2 more guilty habits and their monthly cost:</Text>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={styles.header}>OPTIONAL STEP</Text>
+        <Text style={styles.title}>Add more habits? 🌱</Text>
+        <Text style={styles.question}>Pick up to 2 more habits</Text>
+        
+        <Text style={styles.counter}>{selectedHabits.length}/2 selected</Text>
 
-      <View style={styles.optionsContainer}>
-        {HABITS.map(habit => {
-          const isSelected = selectedHabits.includes(habit);
-          return (
-            <View key={habit} style={styles.habitContainer}>
-              <TouchableOpacity
-                style={[styles.optionButton, isSelected && styles.selectedOptionButton]}
-                onPress={() => handleSelectHabit(habit)}
-              >
-                <Text style={[styles.optionText, isSelected && styles.selectedOptionText]}>
-                  {habit}
-                </Text>
-              </TouchableOpacity>
+        {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
-              {isSelected && (
-                <View style={styles.spendInputContainer}>
-                  <View style={styles.inputWrapper}>
-                    <Text style={styles.dollarSign}>$</Text>
-                    <TextInput
-                      style={styles.spendInput}
-                      placeholder="0"
-                      keyboardType="numeric"
-                      value={spendValues[habit] || ''}
-                      onChangeText={(text) => handleSpendChange(habit, text)}
-                    />
+        <View style={styles.optionsContainer}>
+          {HABITS.map(habit => {
+            const isSelected = selectedHabits.includes(habit);
+            const isDisabled = maxHabitsSelected && !isSelected;
+
+            return (
+              <View key={habit} style={styles.habitContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.optionButton,
+                    isSelected && styles.selectedOptionButton,
+                    isDisabled && styles.disabledOptionButton
+                  ]}
+                  onPress={() => !isDisabled && handleSelectHabit(habit)}
+                  disabled={isDisabled}
+                >
+                  <Text style={[
+                    styles.optionText,
+                    isSelected && styles.selectedOptionText,
+                    isDisabled && styles.disabledOptionText
+                  ]}>
+                    {habit}
+                  </Text>
+                </TouchableOpacity>
+
+                {isSelected && (
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.roast}>{getRoast(habit)}</Text>
                   </View>
-                  <Text style={styles.roast}>{getRoast(habit)}</Text>
-                </View>
-              )}
-            </View>
-          );
-        })}
-      </View>
+                )}
+              </View>
+            );
+          })}
+        </View>
 
-      {selectedHabits.length > 0 &&
-        Object.keys(spendValues).length === selectedHabits.length && (
-          <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
-            <Text style={styles.continueText}>Complete Setup</Text>
+        <View style={styles.buttonContainer}>
+          {selectedHabits.length > 0 && (
+            <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
+              <Text style={styles.continueText}>Complete Setup</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.skipButton} onPress={skipStep}>
+            <Text style={styles.skipText}>Skip this step</Text>
           </TouchableOpacity>
-        )}
-    </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#e9fcf9', paddingHorizontal: 24, paddingTop: 60 },
-  header: { fontSize: 14, fontWeight: '600', color: '#004040', marginBottom: 16 },
-  title: { fontSize: 28, fontWeight: '900', color: '#004040', marginBottom: 8 },
-  question: { fontSize: 20, fontWeight: '700', color: '#004040', marginBottom: 32 },
-  optionsContainer: { width: '100%', alignItems: 'center' },
-  habitContainer: { width: '100%', marginBottom: 16 },
+  container: {
+    flex: 1,
+    backgroundColor: '#e9fcf9',
+  },
+  scrollContainer: {
+    paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 40,
+  },
+  header: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#006666',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#003333',
+    marginBottom: 12,
+    letterSpacing: -0.5,
+  },
+  question: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#005555',
+    marginBottom: 24,
+    letterSpacing: 0.2,
+  },
+  counter: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#007070',
+    marginBottom: 32,
+    textAlign: 'center',
+  },
+  errorText: {
+    color: '#FF4D4D',
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 20,
+    textAlign: 'center',
+    letterSpacing: 0.2,
+  },
+  optionsContainer: {
+    width: '100%',
+    marginBottom: 40,
+  },
+  habitContainer: {
+    marginBottom: 16,
+  },
   optionButton: {
     backgroundColor: '#ffffff',
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    width: '100%',
+    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
     borderWidth: 2,
-    borderColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 2,
-    elevation: 2,
+    borderColor: '#f0f9f7',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  selectedOptionButton: { backgroundColor: '#e0f7f5', borderColor: '#007070' },
-  optionText: { fontSize: 16, color: '#111111', fontWeight: '700' },
-  selectedOptionText: { color: '#007070' },
-  spendInputContainer: { marginTop: 12, paddingLeft: 12 },
-  inputWrapper: {
-    flexDirection: 'row',
+  selectedOptionButton: {
+    backgroundColor: '#e0f7f5',
+    borderColor: '#007070',
+  },
+  disabledOptionButton: {
+    backgroundColor: '#f8f8f8',
+    borderColor: '#e0e0e0',
+    opacity: 0.6,
+  },
+  optionText: {
+    fontSize: 16,
+    color: '#333333',
+    fontWeight: '600',
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+  selectedOptionText: {
+    color: '#005555',
+    fontWeight: '700',
+  },
+  disabledOptionText: {
+    color: '#999999',
+  },
+  inputContainer: {
+    marginTop: 16,
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderWidth: 2,
-    borderColor: '#bcebe3',
   },
-  dollarSign: { fontSize: 16, fontWeight: '700', color: '#007070', marginRight: 8 },
-  spendInput: { flex: 1, fontSize: 16, fontWeight: '700', color: '#111111' },
-  roast: { fontSize: 15, color: '#004040', marginTop: 8, fontStyle: 'italic' },
+  roast: {
+    fontSize: 14,
+    color: '#006666',
+    marginTop: 12,
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  buttonContainer: {
+    alignItems: 'center',
+    gap: 16,
+  },
   continueButton: {
     backgroundColor: '#007070',
-    paddingVertical: 14,
-    paddingHorizontal: 48,
-    borderRadius: 14,
-    alignSelf: 'center',
-    marginTop: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    shadowColor: '#007070',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  continueText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
+  continueText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  skipButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  skipText: {
+    color: '#006666',
+    fontSize: 16,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
 });
