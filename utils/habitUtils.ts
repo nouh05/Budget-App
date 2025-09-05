@@ -5,11 +5,11 @@ const STORAGE_KEY = '@user_data';
 
 // Default per-use spend amounts for each habit
 const DEFAULT_PER_USE_SPEND: { [key: string]: number } = {
-  'DoorDash': 25,      // Average food delivery order
-  'Impulse Amazon': 15, // Average impulse buy
-  'Uber': 12,          // Average short ride
-  'Thrift fits': 30,   // Average thrift store purchase
-  'Crypto coins': 50   // Average crypto "investment"
+  'DoorDash': 25,      
+  'Starbucks': 8, 
+  'Uber': 12,          
+  'Energy Drinks': 5,   
+  'Dunkin': 8 
 };
 
 export const ensureMaxHabits = async (maxHabits: number = 3): Promise<UserData | null> => {

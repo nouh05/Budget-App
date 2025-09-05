@@ -43,16 +43,16 @@ export default function SelectHabitScreen() {
     setErrorMessage('');
   };
 
-  const getRoast = (habit: string) => {
-    switch (habit) {
-      case 'DoorDash': return "C'mon at least drive there yourself";
-      case 'Impulse Amazon': return "Congrats, you own 4 milk frothers.";
-      case 'Uber': return "No license? Walking too difficult?";
-      case 'Thrift fits': return "You bought vintage… from Shein.";
-      case 'Crypto coins': return "Your 'investment' is worth $0.73.";
-      default: return '';
-    }
-  };
+  // const getRoast = (habit: string) => {
+  //   switch (habit) {
+  //     case 'DoorDash': return "C'mon at least drive there yourself";
+  //     case 'Impulse Amazon': return "Congrats, you own 4 milk frothers.";
+  //     case 'Uber': return "No license? Walking too difficult?";
+  //     case 'Thrift fits': return "You bought vintage… from Shein.";
+  //     case 'Crypto coins': return "Your 'investment' is worth $0.73.";
+  //     default: return '';
+  //   }
+  // };
 
   const handleContinue = async () => {
     if (!selectedHabit) {
@@ -121,11 +121,11 @@ export default function SelectHabitScreen() {
                 </Text>
               </TouchableOpacity>
 
-              {isSelected && (
+              {/* {isSelected && (
                 <View style={styles.inputContainer}>
                   <Text style={styles.roast}>{getRoast(habit)}</Text>
                 </View>
-              )}
+              )} */}
             </View>
           );
         })}

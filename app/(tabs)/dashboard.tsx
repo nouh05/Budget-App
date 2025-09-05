@@ -65,10 +65,10 @@ export default function Dashboard() {
   const getHabitIcon = (habit: string) => {
     switch (habit) {
       case 'DoorDash': return '🍔';
-      case 'Impulse Amazon': return '📦';
+      case 'Starbucks': return '☕';
       case 'Uber': return '🚗';
-      case 'Thrift fits': return '👕';
-      case 'Crypto coins': return '💰';
+      case 'Energy Drinks': return '⚡';
+      case 'Dunkin': return '🥯';
       default: return '💸';
     }
   };
